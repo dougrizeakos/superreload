@@ -6,17 +6,17 @@ import logging
 import sys
 import traceback
 from types import BuiltinFunctionType, FunctionType, ModuleType
-from typing import Callable, Iterator, Union, Optional
+from typing import Callable, Iterator, Union, Optional, Type, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-ClassOrFunction = Union[type, FunctionType]
+ClassOrFunction = Union[Type, FunctionType]
 
 # 
 # method for getting subclasses for py2 objects that don't
 # inherit object, left here for reference.
 # 
-def _find_subclasses_slow_py2(class_type: (type)) -> list[type]:
+def _find_subclasses_slow_py2(class_type: (Type)) -> List[Type]:
     subclasses = []
     for other_mod in sys.modules.values():
         for name, obj in inspect.getmembers(other_mod, inspect.isclass):
@@ -35,26 +35,26 @@ def _get_full_member_name(member: ClassOrFunction) -> str:
     return member.__module__ + "." + member.__name__
 
 
-def _get_mro(class_: type) -> tuple[type, ...]:
+def _get_mro(class_: Type) -> Tuple[Type, ...]:
     """Safely get method resolution order. type + parent types."""
     if not hasattr(class_, "__mro__"):
         return ()
     return class_.__mro__
 
 
-def _get_subclasses(class_: type) -> list[type]:
+def _get_subclasses(class_: Type) -> List[Type]:
     """Get all subclasses of class_"""
     return type.__subclasses__(class_)
 
 
-def _iter_external_members(mod: ModuleType) -> Iterator[tuple[str, ClassOrFunction]]:
+def _iter_external_members(mod: ModuleType) -> Iterator[Tuple[str, ClassOrFunction]]:
     """Get an iterator over a module's external functions and classes."""
     for member_name, member in _iter_members(mod):
         if member.__module__ != mod.__name__:
             yield (member_name, member)
 
 
-def _iter_internal_members(mod: ModuleType) -> Iterator[tuple[str, ClassOrFunction]]:
+def _iter_internal_members(mod: ModuleType) -> Iterator[Tuple[str, ClassOrFunction]]:
     """Get an iterator over a module's internal functions and classes."""
     for member_name, member in _iter_members(mod):
         if member.__module__ == mod.__name__:
@@ -68,7 +68,7 @@ def _iter_modules() -> Iterator[ModuleType]:
             yield mod
 
 
-def _iter_members(mod: ModuleType) -> Iterator[tuple[str, ClassOrFunction]]:
+def _iter_members(mod: ModuleType) -> Iterator[Tuple[str, ClassOrFunction]]:
     """Get an iterator over a module's functions and classes."""
     for member_name, member in mod.__dict__.items():
         if inspect.isclass(member) or inspect.isfunction(member):
@@ -104,7 +104,7 @@ class _ModuleUpdator(object):
                 cls._instance_cache.setdefault(type(obj), []).append(obj)
 
     @classmethod
-    def _build_old_member_cache(cls, mods: list[ModuleType]) -> None:
+    def _build_old_member_cache(cls, mods: List[ModuleType]) -> None:
         """Build caches to look up old members after reload/update."""
         cls._old_members_set.clear()
         cls._old_members_map.clear()
@@ -114,7 +114,7 @@ class _ModuleUpdator(object):
             cls._old_members_map[mod.__name__] = mod.__dict__.copy()
 
     @classmethod
-    def build_caches(cls, mods: list[ModuleType]):
+    def build_caches(cls, mods: List[ModuleType]):
         """Builds all internally used caches."""
         cls._build_old_member_cache(mods)
         # The following rely on the old_member cache, so they must go after.
@@ -122,7 +122,7 @@ class _ModuleUpdator(object):
         cls._build_instance_cache()
 
     @classmethod
-    def superreload(cls, mods: list[ModuleType]) -> None:
+    def superreload(cls, mods: List[ModuleType]) -> None:
         """
         Reloads mods and then updates any modules in sys.modules that holds copies of its members
         
@@ -168,7 +168,7 @@ class _ModuleUpdator(object):
             logger.error(error)
 
     @classmethod
-    def superwrapper(cls, mods: list[ModuleType], wrapper_fxn: Callable):
+    def superwrapper(cls, mods: List[ModuleType], wrapper_fxn: Callable):
         """Wrapps all functions and methods in modules in wrapper function."""
         cls.build_caches(mods)
 
@@ -189,7 +189,7 @@ class _ModuleUpdator(object):
         cls.update_stale_modules_and_instances(mods)
 
     @classmethod
-    def update_instances(cls, old_class: type, new_class: type) -> None:
+    def update_instances(cls, old_class: Type, new_class: Type) -> None:
         """
         Update any instances of old_class to new_class.
         
@@ -214,7 +214,7 @@ class _ModuleUpdator(object):
                 other_mod.__dict__.update({other_member_name: new_member})
 
     @classmethod
-    def update_stale_modules_and_instances(cls, mods: list[ModuleType]) -> None:
+    def update_stale_modules_and_instances(cls, mods: List[ModuleType]) -> None:
         """
         Updates all stale references to the updated module.
 
@@ -244,7 +244,7 @@ class _ModuleUpdator(object):
                 cls.update_instances(old_class, new_class)
 
     @classmethod
-    def update_subclasses(cls, old_class: type, new_class: type):
+    def update_subclasses(cls, old_class: Type, new_class: Type):
         """Find subclasses of old_class and update them to new_class."""
         for subclass in _get_subclasses(old_class):
             new_bases = []
@@ -258,7 +258,7 @@ class _ModuleUpdator(object):
             subclass.__bases__ = tuple(new_bases)
 
     @classmethod
-    def wrap_class(cls, class_: type, fxn_wrapper: Callable, member_names: Optional[str] = None) -> type:
+    def wrap_class(cls, class_: Type, fxn_wrapper: Callable, member_names: Optional[str] = None) -> Type:
         """Wrap a class's member functions in the wrapped method and returns the class."""
         for name, member in class_.__dict__.items():
             if member_names and name not in member_names:
@@ -284,7 +284,7 @@ def reload_module(mod: ModuleType) -> None:
     _ModuleUpdator.superreload([mod])
 
 
-def reload_modules(mods: list[ModuleType]) -> None:
+def reload_modules(mods: List[ModuleType]) -> None:
     """Entry point for reloading modules."""
     _ModuleUpdator.superreload(mods)
 
@@ -308,7 +308,7 @@ def wrap_module(mod: ModuleType, fxn: Callable) -> None:
     _ModuleUpdator.superwrapper([mod], fxn)
 
 
-def wrap_modules(mods: list[ModuleType], fxn: Callable) -> None:
+def wrap_modules(mods: List[ModuleType], fxn: Callable) -> None:
     """Entry point for wrapping modules.
 
     Function should accept the member and member_name as args. 
