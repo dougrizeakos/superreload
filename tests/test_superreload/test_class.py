@@ -13,7 +13,7 @@ class Test(unittest.TestCase):
         try:
             utils.edit_b()
             instance_b = modB.ClassB()
-            superreload.reload(modB)
+            superreload.reload_module(modB)
             new_val = "b_edit"
 
             # Test an old instance

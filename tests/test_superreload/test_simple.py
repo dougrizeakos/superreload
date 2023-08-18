@@ -14,7 +14,7 @@ class Test(unittest.TestCase):
     def test_reload(self):
         try:
             utils.edit_b()
-            superreload.reload(modB)
+            superreload.reload_module(modB)
             self.assertEqual(modB.b_func(), "b_edit")
             self.assertEqual(modA.b_direct(), modB.b_func())
             self.assertEqual(modA.b_through_mod(), modB.b_func())
